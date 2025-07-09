@@ -9,3 +9,4 @@ passlib[bcrypt]
 isodate
 python-dotenv
 email-validator
+python-multipart
