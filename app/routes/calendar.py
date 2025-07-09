@@ -10,8 +10,8 @@ from collections import defaultdict
 from app.auth import get_current_user
 from app.database import get_db
 from app.schemas import PlaylistCreateSchema
-
-
+from typing import Literal
+from app import models
 
 router = APIRouter(prefix="/calendar", tags=["Calendar"])
 
@@ -24,7 +24,7 @@ class ScheduleByHoursRequest(BaseModel):
     hours_per_day: float
     start_date: str
 class VideoUpdateSchema(BaseModel):
-    status: str
+    status: Literal['Not Started', 'In Progress', 'Completed']
     notes: Optional[str] = ""
 
 @router.post("/schedule/by-hours")
@@ -220,11 +220,25 @@ def get_calendar_view(playlist_id: int, db: Session = Depends(database.get_db)):
     calendar_list = [{"date": date, "videos": vids} for date, vids in sorted(calendar.items())]
     return calendar_list
 
+from fastapi import Body
+
 @router.put("/video/{video_id}")
-def update_video(video_id: int, payload: VideoUpdateSchema, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    # logic to update video with video_id using payload
+def update_video(
+    video_id: int,
+    payload: VideoUpdateSchema = Body(...),
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    # 🛠 Update the video in DB
+    video = db.query(models.Video).join(models.Playlist).filter(models.Video.id == video_id, models.Playlist.owner_id == user.id).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    video.status = payload.status
+    db.commit()
+    db.refresh(video)
+
     return {"message": "Video updated successfully"}
-from app.auth import get_current_user
 
 @router.get("/user/me/dashboard")
 def user_dashboard(db: Session = Depends(database.get_db), current_user = Depends(get_current_user)):
